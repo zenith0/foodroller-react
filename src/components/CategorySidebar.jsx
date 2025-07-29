@@ -4,7 +4,11 @@ export function CategorySidebar({ open, categories, selected, onToggle, onSelect
   return (
     <div className={`category-sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-toggle" onClick={onToggle}>
-        {open ? '←' : '→'}
+        <div className="burger-menu">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
       {open && (
         <div className="sidebar-content">
