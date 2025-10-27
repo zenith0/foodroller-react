@@ -1,9 +1,13 @@
 export function RecipeCard({ Food }) {
-  if (!Food || !Food.name) return null; // Don't render if empty
+  if (!Food || !Food.name) return null;
   return (
-    <div className="recipe-card" id="recipe-card">
+    <div className="recipe-card">
+      <img 
+        src={Food.image} 
+        alt={Food.name}
+        className="recipe-image"
+      />
       <h2 className="recipe-title">{Food.name}</h2>
-      <img src={Food.image} alt="" className="recipe-image" />
     </div>
   );
 }

@@ -1,5 +1,4 @@
-import '../index.css'
-import '../App.css'
+import '../styles.css'
 
 export const metadata = {
   title: 'Foodroller',

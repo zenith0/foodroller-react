@@ -110,8 +110,8 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
+    <div className="app-container">
+      <header className="app-header">
         FoodRoller
         <TimeframePicker
           startDate={startDate}
@@ -121,7 +121,7 @@ function App() {
           disabled={loading}
         />
         <div
-          className="navbar-cart"
+          className="cart-icon"
           onClick={() => setShowCart(true)}
           title="Show shopping list"
         >
@@ -141,13 +141,6 @@ function App() {
         />
       ) : (
         <>
-          <button
-            className="roll-button"
-            onClick={handleRoll}
-            disabled={loading}
-          >
-            {loading ? "Rolling..." : "Roll!"}
-          </button>
           <CategorySidebar
             open={sidebarOpen}
             categories={categories}
@@ -169,6 +162,16 @@ function App() {
           />
         </>
       )}
+
+      <div className="roll-button-container">
+        <button
+          className="btn btn-roll-main"
+          onClick={handleRoll}
+          title="Roll random meals for the selected timeframe"
+        >
+          {loading ? "Rolling..." : "Roll"}
+        </button>
+      </div>
     </div>
   );
 }

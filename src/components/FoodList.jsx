@@ -10,28 +10,22 @@ export function FoodList({ food, loading, onSave, onReroll }) {
   if (!food || food.length === 0) return null;
 
   return (
-    <div className="food-list">
+    <div className="food-list-grid">
       {food.map((f, idx) => (
         <div key={idx} className="recipe-tile">
           <div className="recipe-tile-content">
-            <div className="recipe-tile-date">{f.date}</div>
+            <div className="recipe-date">{f.date}</div>
             <RecipeCard Food={f} />
             {f.saved === f.date && (
-              <span style={{ color: "green", marginLeft: 8 }}>Saved</span>
+              <span className="recipe-saved-badge">Saved</span>
             )}
           </div>
           {f.name && (
             <div className="tile-bottom-bar">
               <button
                 type="button"
-                className={
-                  f.saved
-                    ? "reroll-button reroll-button-black"
-                    : "reroll-button"
-                }
-                onClick={() =>
-                  f.saved ? onReroll(f.date) : handleSave(f.date, f)
-                }
+                className={f.saved ? "btn btn-reroll" : "btn btn-save"}
+                onClick={() => (f.saved ? onReroll(f.date) : handleSave(f.date, f))}
               >
                 {f.saved ? "Re-roll" : "Save"}
               </button>
