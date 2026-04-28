@@ -90,15 +90,11 @@ Heart icon on recipe cards, Favorites tab in Browse, prioritize favorites in ran
 
 ---
 
-### P2.3 — User Accounts & Authentication ⭐ COMMERCIAL GATE
-`feature/p3.1-user-accounts` | **Effort**: 2–3 weeks
+### ~~P2.3 — User Accounts & Authentication~~ ✅ DONE
+`feature/p3.1-user-accounts` — merged
 
-**Blocks all monetization, AI personalization, and social features.** Must decide on backend first.
-
-- Google OAuth (fastest) + email/password
-- Anonymous → authenticated migration (preserve localStorage data)
-- Profile page (username, dietary preferences)
-- **Recommended backend**: Firebase Auth + Firestore (fastest to market, scales to Phase 3)
+Firebase Auth (Google OAuth + email/password). AuthContext + useAuth() hook. Auto-migrates localStorage mealplan to Firestore on first sign-in. Header sign-in button → AuthModal; signed-in users see avatar + UserMenu.
+**Setup**: copy `.env.local.example` → `.env.local`, fill Firebase project values.
 
 ---
 
@@ -197,4 +193,4 @@ Admin panel, impersonation banner, audit log. Required for support once user acc
 
 ---
 
-*Last updated: April 28, 2026 — P1.0 test coverage + P1.1 Export Shopping List shipped*
+*Last updated: April 28, 2026 — P1.0 tests · P1.1 export · CI/CD · P2.3 user accounts shipped*
