@@ -75,7 +75,8 @@ Rules:
 - Assign exactly one meal per day
 - Use each meal index at most twice across the whole plan
 - Prefer meals that best match the daily macro targets
-- Respond with ONLY valid JSON: {"YYYY-MM-DD": <index>, ...}`;
+
+Call the assign_meals tool with your assignments.`;
 }
 
 async function callClaude(prompt) {
@@ -91,15 +92,32 @@ async function callClaude(prompt) {
     headers,
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 512,
+      max_tokens: 1024,
+      tools: [{
+        name: 'assign_meals',
+        description: 'Assign one meal index per date',
+        input_schema: {
+          type: 'object',
+          properties: {
+            assignments: {
+              type: 'object',
+              additionalProperties: { type: 'integer' },
+              description: 'Map of YYYY-MM-DD date strings to meal indices',
+            },
+          },
+          required: ['assignments'],
+        },
+      }],
+      tool_choice: { type: 'tool', name: 'assign_meals' },
       messages: [{ role: 'user', content: prompt }],
     }),
   });
 
   if (!res.ok) throw new Error(`Claude API error: ${res.status}`);
   const data = await res.json();
-  const text = data.content[0].text.trim();
-  return JSON.parse(text);
+  const toolUse = data.content.find((b) => b.type === 'tool_use');
+  if (!toolUse) throw new Error('AI returned an unexpected response. Please try again.');
+  return toolUse.input.assignments;
 }
 
 export async function generateMealPlan({

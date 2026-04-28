@@ -14,6 +14,11 @@ const mockRecipe = (name, id) => ({
 
 const mockNutrition = { kcal: 400, protein: 30, carbs: 40, fat: 10, fiber: 2 };
 
+// Tool-use response shape: content contains a tool_use block with input.assignments
+const mockClaudeResponse = (assignments) => ({
+  content: [{ type: 'tool_use', input: { assignments } }],
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
@@ -34,9 +39,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        content: [{ text: '{"2026-04-28":0,"2026-04-29":1,"2026-04-30":2}' }],
-      }),
+      json: async () => mockClaudeResponse({ '2026-04-28': 0, '2026-04-29': 1, '2026-04-30': 2 }),
     });
 
     const plan = await generateMealPlan({
@@ -66,9 +69,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        content: [{ text: '{"2026-04-28":0}' }],
-      }),
+      json: async () => mockClaudeResponse({ '2026-04-28': 0 }),
     });
 
     await generateMealPlan({
@@ -112,9 +113,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        content: [{ text: '{"2026-04-28":0}' }],
-      }),
+      json: async () => mockClaudeResponse({ '2026-04-28': 0 }),
     });
 
     const plan = await generateMealPlan({
@@ -139,9 +138,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        content: [{ text: '{}' }],
-      }),
+      json: async () => mockClaudeResponse({}),
     });
 
     await expect(
@@ -154,5 +151,29 @@ describe('generateMealPlan', () => {
         onProgress: jest.fn(),
       })
     ).rejects.toThrow('empty plan');
+  });
+
+  it('throws when Claude returns no tool_use block', async () => {
+    let callCount = 0;
+    recipes.fetchRecipeByCategories.mockImplementation(() => {
+      callCount++;
+      return Promise.resolve(mockRecipe(`Recipe ${callCount}`, `id-${callCount}`));
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: 'sorry' }] }),
+    });
+
+    await expect(
+      generateMealPlan({
+        startDate: '2026-04-28',
+        endDate: '2026-04-28',
+        macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
+        selectedCategories: [],
+        selectedRestrictions: [],
+        onProgress: jest.fn(),
+      })
+    ).rejects.toThrow('unexpected response');
   });
 });
