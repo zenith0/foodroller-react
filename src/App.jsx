@@ -61,24 +61,6 @@ function App() {
     setFood(loaded);
   }, [startDate, endDate, mealplanLoaded, mealplan]);
 
-  // Roll recipes for all days in range, but keep saved ones unless confirmed
-  const handleRoll = async () => {
-    setLoading(true);
-    const dates = getDatesInRange(new Date(startDate), new Date(endDate));
-    const newFood = [];
-    for (let dateObj of dates) {
-      const dateStr = dateObj.toISOString().slice(0, 10);
-      if (mealplan[dateStr]) {
-        newFood.push({ ...mealplan[dateStr], date: dateStr, saved: true });
-      } else {
-        const recipe = await fetchRecipeByCategories(selectedCategories, selectedRestrictions);
-        newFood.push({ ...recipe, date: dateStr, saved: false });
-      }
-    }
-    setFood(newFood);
-    setLoading(false);
-  };
-
   const handleSave = (date, recipe) => {
     setMealplan((prev) => ({
       ...prev,
@@ -312,13 +294,6 @@ function App() {
               Set nutrition goals → unlock AI planning
             </button>
           )}
-          <button
-            className="btn btn-roll-main"
-            onClick={handleRoll}
-            title="Roll random meals for the selected timeframe"
-          >
-            {loading ? "Rolling..." : "Roll"}
-          </button>
         </div>
       )}
 
