@@ -2,12 +2,7 @@ import { fetchRecipeByCategories } from './recipes';
 import { getNutrition, getNutritionFromCache } from './nutrition';
 import { getDatesInRange } from '../utils/utils';
 
-// In dev the Next.js server proxies to Anthropic (avoids localhost CORS).
-// In the static production build, the dangerous-client-side flag allows direct browser calls.
-const CLAUDE_ENDPOINT =
-  process.env.NODE_ENV === 'development'
-    ? '/api/claude'
-    : 'https://api.anthropic.com/v1/messages';
+const CLAUDE_ENDPOINT = '/api/claude';
 
 const DEFAULT_SERVINGS = 4;
 
@@ -80,16 +75,9 @@ Call the assign_meals tool with your assignments.`;
 }
 
 async function callClaude(prompt) {
-  const headers = { 'content-type': 'application/json' };
-  if (process.env.NODE_ENV !== 'development') {
-    headers['x-api-key'] = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
-    headers['anthropic-version'] = '2023-06-01';
-    headers['anthropic-dangerous-client-side-usage-flag'] = 'true';
-  }
-
   const res = await fetch(CLAUDE_ENDPOINT, {
     method: 'POST',
-    headers,
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
