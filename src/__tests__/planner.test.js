@@ -5,6 +5,11 @@ import * as nutrition from '../api/nutrition';
 jest.mock('../api/recipes');
 jest.mock('../api/nutrition');
 
+const SLOTS = [
+  { id: 'breakfast', label: 'Breakfast', order: 0 },
+  { id: 'dinner',    label: 'Dinner',    order: 1 },
+];
+
 const mockRecipe = (name, id) => ({
   id,
   name,
@@ -14,7 +19,7 @@ const mockRecipe = (name, id) => ({
 
 const mockNutrition = { kcal: 400, protein: 30, carbs: 40, fat: 10, fiber: 2 };
 
-// Tool-use response shape: content contains a tool_use block with input.assignments
+// New tool-use response shape: assignments is { date: { slotId: index } }
 const mockClaudeResponse = (assignments) => ({
   content: [{ type: 'tool_use', input: { assignments } }],
 });
@@ -22,15 +27,14 @@ const mockClaudeResponse = (assignments) => ({
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
-
   nutrition.getNutritionFromCache.mockReturnValue(null);
   nutrition.getNutrition.mockResolvedValue(mockNutrition);
 });
 
 describe('generateMealPlan', () => {
-  it('returns a plan with one meal per date', async () => {
+  it('returns a plan with one meal per slot per date', async () => {
     let callCount = 0;
-    const names = ['Butter Chicken', 'Pasta', 'Beef Stew', 'Salmon', 'Tacos', 'Curry'];
+    const names = ['Butter Chicken', 'Pasta', 'Beef Stew', 'Salmon', 'Tacos', 'Curry', 'Omelette', 'Salad', 'Soup', 'Steak', 'Tacos2', 'Wrap'];
     recipes.fetchRecipeByCategories.mockImplementation(() => {
       const name = names[callCount % names.length];
       callCount++;
@@ -39,7 +43,11 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => mockClaudeResponse({ '2026-04-28': 0, '2026-04-29': 1, '2026-04-30': 2 }),
+      json: async () => mockClaudeResponse({
+        '2026-04-28': { breakfast: 0, dinner: 1 },
+        '2026-04-29': { breakfast: 2, dinner: 3 },
+        '2026-04-30': { breakfast: 4, dinner: 5 },
+      }),
     });
 
     const plan = await generateMealPlan({
@@ -48,12 +56,14 @@ describe('generateMealPlan', () => {
       macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
       selectedCategories: [],
       selectedRestrictions: [],
+      slots: SLOTS,
       onProgress: jest.fn(),
     });
 
     expect(Object.keys(plan)).toHaveLength(3);
-    expect(plan['2026-04-28']).toHaveProperty('name');
-    expect(plan['2026-04-28'].nutrition).toMatchObject({
+    expect(plan['2026-04-28'].breakfast).toHaveProperty('name');
+    expect(plan['2026-04-28'].dinner).toHaveProperty('name');
+    expect(plan['2026-04-28'].breakfast.nutrition).toMatchObject({
       kcal: expect.any(Number),
       protein: expect.any(Number),
     });
@@ -69,7 +79,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => mockClaudeResponse({ '2026-04-28': 0 }),
+      json: async () => mockClaudeResponse({ '2026-04-28': { breakfast: 0, dinner: 1 } }),
     });
 
     await generateMealPlan({
@@ -78,6 +88,7 @@ describe('generateMealPlan', () => {
       macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
       selectedCategories: [],
       selectedRestrictions: [],
+      slots: SLOTS,
       onProgress,
     });
 
@@ -96,6 +107,7 @@ describe('generateMealPlan', () => {
         macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
         selectedCategories: [],
         selectedRestrictions: [],
+        slots: SLOTS,
         onProgress: jest.fn(),
       })
     ).rejects.toThrow('Not enough recipes');
@@ -113,7 +125,7 @@ describe('generateMealPlan', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => mockClaudeResponse({ '2026-04-28': 0 }),
+      json: async () => mockClaudeResponse({ '2026-04-28': { breakfast: 0, dinner: 1 } }),
     });
 
     const plan = await generateMealPlan({
@@ -122,11 +134,12 @@ describe('generateMealPlan', () => {
       macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
       selectedCategories: [],
       selectedRestrictions: [],
+      slots: SLOTS,
       onProgress: jest.fn(),
     });
 
     expect(nutrition.getNutrition).not.toHaveBeenCalled();
-    expect(plan['2026-04-28'].nutrition.kcal).toBe(Math.round(cached.kcal / 4));
+    expect(plan['2026-04-28'].breakfast.nutrition.kcal).toBe(Math.round(cached.kcal / 4));
   });
 
   it('throws when Claude returns an empty plan', async () => {
@@ -148,6 +161,7 @@ describe('generateMealPlan', () => {
         macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
         selectedCategories: [],
         selectedRestrictions: [],
+        slots: SLOTS,
         onProgress: jest.fn(),
       })
     ).rejects.toThrow('empty plan');
@@ -172,6 +186,7 @@ describe('generateMealPlan', () => {
         macroProfile: { kcal: 2000, protein: 150, carbs: 200, fat: 60 },
         selectedCategories: [],
         selectedRestrictions: [],
+        slots: SLOTS,
         onProgress: jest.fn(),
       })
     ).rejects.toThrow('unexpected response');

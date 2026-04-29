@@ -8,12 +8,30 @@ jest.mock('../api/planner', () => ({
 
 const macroProfile = { kcal: 2000, protein: 150, carbs: 200, fat: 60 };
 
+const SLOTS = [
+  { id: 'breakfast', label: 'Breakfast', order: 0 },
+  { id: 'dinner',    label: 'Dinner',    order: 1 },
+];
+
+// New plan format: { date: { slotId: meal } }
+const mockPlan = {
+  '2026-04-28': {
+    breakfast: { name: 'Omelette',       nutrition: { kcal: 300, protein: 20, carbs: 10, fat: 18 } },
+    dinner:    { name: 'Butter Chicken', nutrition: { kcal: 450, protein: 35, carbs: 40, fat: 12 } },
+  },
+  '2026-04-29': {
+    breakfast: { name: 'Porridge',       nutrition: { kcal: 250, protein: 10, carbs: 45, fat: 5 } },
+    dinner:    { name: 'Pasta Bolognese',nutrition: { kcal: 520, protein: 28, carbs: 60, fat: 15 } },
+  },
+};
+
 const defaultProps = {
   macroProfile,
   startDate: '2026-04-28',
   endDate: '2026-04-29',
   selectedCategories: [],
   selectedRestrictions: [],
+  slots: SLOTS,
   onApply: jest.fn(),
   onClose: jest.fn(),
 };
@@ -34,6 +52,12 @@ describe('PlannerModal', () => {
     expect(screen.getByText('Generate plan')).toBeInTheDocument();
   });
 
+  it('shows all slot names in the description', () => {
+    render(<PlannerModal {...defaultProps} />);
+    expect(screen.getByText(/breakfast/i)).toBeInTheDocument();
+    expect(screen.getByText(/dinner/i)).toBeInTheDocument();
+  });
+
   it('shows spinner while generating', async () => {
     generateMealPlan.mockImplementation(
       ({ onProgress }) =>
@@ -49,27 +73,21 @@ describe('PlannerModal', () => {
   });
 
   it('shows results and apply button after success', async () => {
-    generateMealPlan.mockResolvedValue({
-      '2026-04-28': { name: 'Butter Chicken', nutrition: { kcal: 450, protein: 35, carbs: 40, fat: 12 } },
-      '2026-04-29': { name: 'Pasta Bolognese', nutrition: { kcal: 520, protein: 28, carbs: 60, fat: 15 } },
-    });
+    generateMealPlan.mockResolvedValue(mockPlan);
     render(<PlannerModal {...defaultProps} />);
     fireEvent.click(screen.getByText('Generate plan'));
     await screen.findByText('Butter Chicken');
     expect(screen.getByText('Pasta Bolognese')).toBeInTheDocument();
-    expect(screen.getByText('Apply plan')).toBeInTheDocument();
+    expect(screen.getByText('Apply to plan')).toBeInTheDocument();
   });
 
-  it('calls onApply and onClose when apply is clicked', async () => {
-    const plan = {
-      '2026-04-28': { name: 'Butter Chicken', nutrition: { kcal: 450, protein: 35, carbs: 40, fat: 12 } },
-    };
-    generateMealPlan.mockResolvedValue(plan);
+  it('calls onApply with the plan and onClose when apply is clicked', async () => {
+    generateMealPlan.mockResolvedValue(mockPlan);
     render(<PlannerModal {...defaultProps} />);
     fireEvent.click(screen.getByText('Generate plan'));
-    await screen.findByText('Apply plan');
-    fireEvent.click(screen.getByText('Apply plan'));
-    expect(defaultProps.onApply).toHaveBeenCalledWith(plan);
+    await screen.findByText('Apply to plan');
+    fireEvent.click(screen.getByText('Apply to plan'));
+    expect(defaultProps.onApply).toHaveBeenCalledWith(mockPlan);
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
@@ -94,10 +112,7 @@ describe('PlannerModal', () => {
   });
 
   it('allows regeneration after success', async () => {
-    const plan = {
-      '2026-04-28': { name: 'Butter Chicken', nutrition: { kcal: 450, protein: 35, carbs: 40, fat: 12 } },
-    };
-    generateMealPlan.mockResolvedValue(plan);
+    generateMealPlan.mockResolvedValue(mockPlan);
     render(<PlannerModal {...defaultProps} />);
     fireEvent.click(screen.getByText('Generate plan'));
     await screen.findByText('Regenerate');

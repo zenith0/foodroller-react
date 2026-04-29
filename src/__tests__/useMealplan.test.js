@@ -24,7 +24,7 @@ describe('useMealplan — anonymous (no user)', () => {
   });
 
   it('loads persisted data from localStorage', () => {
-    const saved = { '2026-05-01': { name: 'Pasta', ingredients: [] } };
+    const saved = { '2026-05-01': { dinner: { name: 'Pasta', ingredients: [] } } };
     localStorage.setItem(KEY, JSON.stringify(saved));
     const { result } = renderHook(() => useMealplan(null));
     expect(result.current[0]).toEqual(saved);
@@ -33,10 +33,10 @@ describe('useMealplan — anonymous (no user)', () => {
   it('persists updates to localStorage', () => {
     const { result } = renderHook(() => useMealplan(null));
     act(() => {
-      result.current[1]({ '2026-05-02': { name: 'Salad', ingredients: [] } });
+      result.current[1]({ '2026-05-02': { dinner: { name: 'Salad', ingredients: [] } } });
     });
     expect(JSON.parse(localStorage.getItem(KEY))).toEqual({
-      '2026-05-02': { name: 'Salad', ingredients: [] },
+      '2026-05-02': { dinner: { name: 'Salad', ingredients: [] } },
     });
   });
 
@@ -53,7 +53,7 @@ describe('useMealplan — anonymous (no user)', () => {
 
 describe('useMealplan — signed in (with user)', () => {
   const user = { uid: 'user-123' };
-  const cloudData = { '2026-05-03': { name: 'Cloud Meal', ingredients: [] } };
+  const cloudData = { '2026-05-03': { dinner: { name: 'Cloud Meal', ingredients: [] } } };
 
   it('loads mealplan from Firestore when user is signed in', async () => {
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ meals: cloudData }) });
@@ -63,7 +63,7 @@ describe('useMealplan — signed in (with user)', () => {
   });
 
   it('migrates localStorage data to Firestore on first sign-in (empty cloud)', async () => {
-    const localData = { '2026-05-04': { name: 'Local Meal', ingredients: [] } };
+    const localData = { '2026-05-04': { dinner: { name: 'Local Meal', ingredients: [] } } };
     localStorage.setItem(KEY, JSON.stringify(localData));
     getDoc.mockResolvedValue({ exists: () => false });
     setDoc.mockResolvedValue(undefined);
@@ -83,17 +83,17 @@ describe('useMealplan — signed in (with user)', () => {
     await waitFor(() => expect(result.current[2]).toBe(true));
 
     act(() => {
-      result.current[1]({ '2026-05-05': { name: 'New Meal', ingredients: [] } });
+      result.current[1]({ '2026-05-05': { dinner: { name: 'New Meal', ingredients: [] } } });
     });
 
     expect(setDoc).toHaveBeenCalledWith(
       undefined, // doc() is mocked to return undefined
-      { meals: { '2026-05-05': { name: 'New Meal', ingredients: [] } } }
+      { meals: { '2026-05-05': { dinner: { name: 'New Meal', ingredients: [] } } } }
     );
   });
 
   it('falls back to localStorage if Firestore fails', async () => {
-    const localData = { '2026-05-06': { name: 'Fallback', ingredients: [] } };
+    const localData = { '2026-05-06': { dinner: { name: 'Fallback', ingredients: [] } } };
     localStorage.setItem(KEY, JSON.stringify(localData));
     getDoc.mockRejectedValue(new Error('network error'));
 
