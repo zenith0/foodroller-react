@@ -1,270 +1,407 @@
 import { FoodList } from "./components/FoodList";
-import React from 'react';
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { TimeframePicker } from "./components/TimeframePicker";
-import { getDatesInRange } from "./utils/utils";
-import { fetchRecipe, fetchRecipeByCategories, fetchMealById } from "./api/recipes";
+import { fetchRecipeByCategories, fetchMealById } from "./api/recipes";
 import { useMealplan } from "./hooks/useMealplan";
+import { useMealSlots } from "./hooks/useMealSlots";
+import { useDaySlotOverrides } from "./hooks/useDaySlotOverrides";
 import { ShoppingCart } from "./components/ShoppingCart";
-import { CategorySidebar } from "./components/CategorySidebar";
+import { FilterBar } from "./components/FilterBar";
 import RecipeBrowser from "./components/RecipeBrowser";
 import AddToDateModal from "./components/AddToDateModal";
+import { useAuth } from "./context/AuthContext";
+import AuthModal from "./components/AuthModal";
+import UserMenu from "./components/UserMenu";
+import MacroProfileModal from "./components/MacroProfileModal";
+import MacroDashboard from "./components/MacroDashboard";
+import { useMacroProfile } from "./hooks/useMacroProfile";
+import PlannerModal from "./components/PlannerModal";
+import SlotManagerModal from "./components/SlotManagerModal";
+import { CalendarDays, Search, BarChart2, ShoppingBag, Moon, Sun } from "lucide-react";
+import { DIETARY_RESTRICTIONS } from "./utils/dietaryRestrictions";
+import { getNutrition, getNutritionFromCache } from "./api/nutrition";
 
 function App() {
+  const { user } = useAuth();
   const today = new Date();
   const defaultEnd = new Date();
   defaultEnd.setDate(today.getDate() + 4);
 
   const [startDate, setStartDate] = useState(today.toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(defaultEnd.toISOString().slice(0, 10));
-  const [food, setFood] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [mealplan, setMealplan, mealplanLoaded] = useMealplan();
-  const [showCart, setShowCart] = useState(false);
-  const [categories, setCategories] = useState([]);
+  const [endDate, setEndDate]     = useState(defaultEnd.toISOString().slice(0, 10));
+  const [mealplan, setMealplan, mealplanLoaded] = useMealplan(user);
+  const [slots, setSlots]         = useMealSlots(user);
+  const [macroProfile, setMacroProfile] = useMacroProfile(user);
+  const [daySlotOverrides, setDaySlotOverrides] = useDaySlotOverrides();
+  const [rerollingKey, setRerollingKey] = useState(null);
+  const [darkMode, setDarkMode]   = useState(false);
+
+  const getDaySlots = (date) =>
+    [...(daySlotOverrides[date] ?? slots)].sort((a, b) => a.order - b.order);
+
+  const handleAddSlotToDay = (date, slot) => {
+    setDaySlotOverrides((prev) => {
+      const current = prev[date] ?? slots;
+      if (current.some((s) => s.id === slot.id)) return prev;
+      const updated = [...current, slot].sort((a, b) => a.order - b.order);
+      return { ...prev, [date]: updated };
+    });
+  };
+
+  const handleRemoveSlotFromDay = (date, slotId) => {
+    setDaySlotOverrides((prev) => {
+      const current = prev[date] ?? slots;
+      return { ...prev, [date]: current.filter((s) => s.id !== slotId) };
+    });
+    setMealplan((prev) => {
+      const day = { ...(prev[date] || {}) };
+      delete day[slotId];
+      const next = { ...prev };
+      if (Object.keys(day).length === 0) delete next[date];
+      else next[date] = day;
+      return next;
+    });
+  };
+
+  const [showAuthModal, setShowAuthModal]       = useState(false);
+  const [showMacroModal, setShowMacroModal]     = useState(false);
+  const [showPlannerModal, setShowPlannerModal] = useState(false);
+  const [showSlotManager, setShowSlotManager]   = useState(false);
+  const [showCart, setShowCart]                 = useState(false);
+
+  const [categories, setCategories]               = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedRestrictions, setSelectedRestrictions] = useState([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeView, setActiveView] = useState('plan'); // 'plan' or 'browse'
+  const [activeView, setActiveView]               = useState('plan');
   const [selectedMealForDate, setSelectedMealForDate] = useState(null);
+  const [slotFilters, setSlotFilters]             = useState({}); // { [slotId]: { restrictions: [], categories: [] } }
+  const [nutritionMap, setNutritionMap]           = useState({});
 
-  // Fetch categories on mount
+  // Fetch nutrition for all meals in the plan (results cached in localStorage)
+  useEffect(() => {
+    const meals = [];
+    for (const day of Object.values(mealplan)) {
+      for (const meal of Object.values(day)) {
+        if (meal?.ingredients?.length) meals.push(meal);
+      }
+    }
+    const uncached = meals.filter((m) => {
+      const k = m.id ?? m.name;
+      return k && !getNutritionFromCache(k) && !nutritionMap[k];
+    });
+    if (!uncached.length) return;
+    let cancelled = false;
+    Promise.all(
+      uncached.map((m) =>
+        getNutrition(m.id ?? m.name, m.ingredients)
+          .then((n) => ({ key: m.id ?? m.name, n }))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const map = {};
+      results.forEach((r) => { if (r) map[r.key] = r.n; });
+      if (Object.keys(map).length) setNutritionMap((prev) => ({ ...prev, ...map }));
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mealplan]);
+
+  // Apply design tokens to <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'herb');
+    root.setAttribute('data-font', 'editorial');
+    root.setAttribute('data-density', 'comfortable');
+    root.setAttribute('data-dark', darkMode ? 'true' : 'false');
+  }, [darkMode]);
+
   useEffect(() => {
     fetch("https://www.themealdb.com/api/json/v1/1/categories.php")
       .then((res) => res.json())
       .then((data) => setCategories(data.categories || []));
   }, []);
 
-  // Only build empty food slots when timeframe changes
-  useEffect(() => {
-    if (!mealplanLoaded) return;
-    const dates = getDatesInRange(new Date(startDate), new Date(endDate));
-    const loaded = dates.map((dateObj) => {
-      const dateStr = dateObj.toISOString().slice(0, 10);
-      if (mealplan[dateStr]) {
-        return { ...mealplan[dateStr], date: dateStr, saved: true };
-      }
-      return { date: dateStr, saved: false };
-    });
-    setFood(loaded);
-    // eslint-disable-next-line
-  }, [startDate, endDate, mealplanLoaded]); // <-- mealplan removed from deps
+  const handleReroll = async (date, slotId) => {
+    const key = `${date}-${slotId}`;
+    const sf = slotFilters[slotId];
+    const cats = sf?.categories?.length ? sf.categories : selectedCategories;
+    const restr = sf?.restrictions?.length ? sf.restrictions : selectedRestrictions;
+    setRerollingKey(key);
+    try {
+      const recipe = await fetchRecipeByCategories(cats, restr);
+      const fullRecipe = recipe.ingredients ? recipe : await fetchMealById(recipe.id);
+      setMealplan((prev) => ({
+        ...prev,
+        [date]: { ...(prev[date] || {}), [slotId]: fullRecipe },
+      }));
+    } finally {
+      setRerollingKey(null);
+    }
+  };
 
-  // Roll recipes for all days in range, but keep saved ones unless confirmed
-  const handleRoll = async () => {
-    setLoading(true);
-    const dates = getDatesInRange(new Date(startDate), new Date(endDate));
-    const newFood = [];
-    for (let dateObj of dates) {
-      const dateStr = dateObj.toISOString().slice(0, 10);
-      if (mealplan[dateStr]) {
-        newFood.push({ ...mealplan[dateStr], date: dateStr, saved: true });
+  const handleRemoveMeal = (date, slotId) => {
+    setMealplan((prev) => {
+      const day = { ...(prev[date] || {}) };
+      delete day[slotId];
+      const next = { ...prev };
+      if (Object.keys(day).length === 0) {
+        delete next[date];
       } else {
-        const recipe = await fetchRecipeByCategories(selectedCategories, selectedRestrictions);
-        newFood.push({ ...recipe, date: dateStr, saved: false });
+        next[date] = day;
       }
-    }
-    setFood(newFood);
-    setLoading(false);
-  };
-
-  const handleSave = (date, recipe) => {
-    setMealplan((prev) => ({
-      ...prev,
-      [date]: recipe,
-    }));
-    setFood((prev) =>
-      prev.map((f) => (f.date === date ? { ...f, saved: true } : f))
-    );
-  };
-
-  const handleReroll = async (date) => {
-    if (mealplan[date]) {
-      if (
-        !window.confirm(
-          "This day is saved. Re-rolling will overwrite it. Continue?"
-        )
-      )
-        return;
-      setMealplan((prev) => {
-        const copy = { ...prev };
-        delete copy[date];
-        return copy;
-      });
-    }
-    setLoading(true);
-    const recipe = await fetchRecipeByCategories(selectedCategories, selectedRestrictions);
-    setFood((prev) =>
-      prev.map((f) => (f.date === date ? { ...recipe, date, saved: false } : f))
-    );
-    setLoading(false);
-  };
-
-  // In App.js
-  const getIngredientsByRecipe = () => {
-    // Only include saved meals
-    const result = {};
-    Object.entries(mealplan).forEach(([date, recipe]) => {
-      console.log(recipe);
-      result[date] = {
-        name: recipe.name,
-        ingredients: recipe.ingredients || [],
-      };
+      return next;
     });
-    return result;
   };
 
-  // Handle adding a browsed meal to a specific date
   const handleAddMealToDate = (meal) => {
     setSelectedMealForDate(meal);
   };
 
-  const confirmAddMealToDate = async (date, meal) => {
+  const confirmAddMealToDate = async (date, slotId, meal) => {
     try {
-      // Fetch full details if we only have the preview
-      const fullRecipe = meal.ingredients 
-        ? meal 
-        : await fetchMealById(meal.id);
-      
-      // Add to mealplan
+      const fullRecipe = meal.ingredients ? meal : await fetchMealById(meal.id);
       setMealplan((prev) => ({
         ...prev,
-        [date]: fullRecipe,
+        [date]: { ...(prev[date] || {}), [slotId]: fullRecipe },
       }));
-      
-      // Update food list if date is in current timeframe
-      setFood((prev) =>
-        prev.map((f) => 
-          f.date === date 
-            ? { ...fullRecipe, date, saved: true } 
-            : f
-        )
-      );
-      
       setSelectedMealForDate(null);
-      setActiveView('plan'); // Switch back to plan view
+      setActiveView('plan');
     } catch (err) {
-      console.error('Error adding meal to date:', err);
+      console.error('Error adding meal:', err);
       alert('Failed to add meal. Please try again.');
     }
   };
 
+  const getIngredientsByRecipe = () => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const result = {};
+    for (const [date, daySlots] of Object.entries(mealplan)) {
+      if (new Date(date) < todayStart) continue;
+      for (const [slotId, meal] of Object.entries(daySlots)) {
+        if (meal?.ingredients?.length) {
+          result[`${date}-${slotId}`] = { name: meal.name, ingredients: meal.ingredients };
+        }
+      }
+    }
+    return result;
+  };
+
+  const cartCount = Object.values(mealplan).reduce(
+    (n, day) => n + Object.values(day).filter((m) => m?.ingredients?.length).length,
+    0
+  );
+
   return (
     <div className="app-container">
-      <header className="app-header">
-        FoodRoller
-        <TimeframePicker
-          startDate={startDate}
-          endDate={endDate}
-          onStartChange={setStartDate}
-          onEndChange={setEndDate}
-          disabled={loading}
-        />
-        <div
-          className="cart-icon"
-          onClick={() => setShowCart(true)}
-          title="Show shopping list"
-        >
-          {/* SVG cart icon */}
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2zM7.16 14l.84-2h7.45c.75 0 1.41-.41 1.75-1.03l3.24-5.88A1 1 0 0 0 19.45 4H5.21l-.94-2H1v2h2l3.6 7.59-1.35 2.44C4.52 15.37 5.48 17 7 17h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12z"
-              fill="#fff"
-            />
-          </svg>
+      <nav className="navbar">
+        <div className="navbar__logo">
+          FoodRoller
         </div>
-      </header>
-
-      {/* View Tabs */}
-      <div className="view-tabs">
-        <button 
-          className={`view-tab ${activeView === 'plan' ? 'active' : ''}`}
-          onClick={() => setActiveView('plan')}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          My Plan
-        </button>
-        <button 
-          className={`view-tab ${activeView === 'browse' ? 'active' : ''}`}
-          onClick={() => setActiveView('browse')}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.35-4.35"></path>
-          </svg>
-          Browse Recipes
-        </button>
-      </div>
-
-      {showCart ? (
-        <ShoppingCart
-          ingredientsByRecipe={getIngredientsByRecipe()}
-          onClose={() => setShowCart(false)}
-        />
-      ) : (
-        <>
-          <CategorySidebar
-            open={sidebarOpen}
-            categories={categories}
-            selected={selectedCategories}
-            restrictions={selectedRestrictions}
-            onToggle={() => setSidebarOpen((open) => !open)}
-            onSelect={(cat) =>
-              setSelectedCategories((selected) =>
-                selected.includes(cat)
-                  ? selected.filter((c) => c !== cat)
-                  : [...selected, cat]
-              )
-            }
-            onRestrictionToggle={(restriction) =>
-              setSelectedRestrictions((selected) =>
-                selected.includes(restriction)
-                  ? selected.filter((r) => r !== restriction)
-                  : [...selected, restriction]
-              )
-            }
-          />
-          
-          {activeView === 'plan' ? (
-            <FoodList
-              food={food}
-              loading={loading}
-              onSave={handleSave}
-              onReroll={handleReroll}
-            />
+        <div className="navbar__tabs">
+          <button
+            className={activeView === 'plan' ? 'active' : ''}
+            onClick={() => setActiveView('plan')}
+          >
+            <CalendarDays size={15} strokeWidth={2} /> My Plan
+          </button>
+          <button
+            className={activeView === 'browse' ? 'active' : ''}
+            onClick={() => setActiveView('browse')}
+          >
+            <Search size={15} strokeWidth={2} /> Browse
+          </button>
+          <button
+            className={activeView === 'macros' ? 'active' : ''}
+            onClick={() => setActiveView('macros')}
+          >
+            <BarChart2 size={15} strokeWidth={2} /> Macros
+          </button>
+        </div>
+        <div className="navbar__spacer" />
+        <div className="navbar__actions">
+          <button
+            className="btn btn--outline btn--icon btn--cart"
+            onClick={() => setShowCart((o) => !o)}
+            title="Shopping List"
+          >
+            <ShoppingBag size={17} strokeWidth={1.75} />
+            {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+          </button>
+        </div>
+        <div className="navbar__user-section">
+          <button
+            className="btn--dark-toggle"
+            onClick={() => setDarkMode((d) => !d)}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
+          </button>
+          <button className="btn--goals" onClick={() => setShowMacroModal(true)}>
+            {macroProfile
+              ? `${macroProfile.kcal} kcal · ${macroProfile.protein}g P`
+              : 'Goals'}
+          </button>
+          {user ? (
+            <UserMenu />
           ) : (
+            <button className="btn--login" onClick={() => setShowAuthModal(true)}>
+              Log in
+            </button>
+          )}
+        </div>
+      </nav>
+
+      <div className="app-body">
+        {activeView === 'browse' && (
+          <FilterBar
+            categories={categories}
+            selectedCategories={selectedCategories}
+            restrictions={selectedRestrictions}
+            onRestrictionToggle={(restriction) =>
+              setSelectedRestrictions((prev) =>
+                prev.includes(restriction)
+                  ? prev.filter((r) => r !== restriction)
+                  : [...prev, restriction]
+              )
+            }
+            onSelect={(cat) =>
+              setSelectedCategories((prev) =>
+                prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+              )
+            }
+            onClearCategories={() => setSelectedCategories([])}
+          />
+        )}
+
+        <main className="main-content">
+          {activeView === 'plan' && (
+            <>
+              <TimeframePicker
+                startDate={startDate}
+                endDate={endDate}
+                onStartChange={setStartDate}
+                onEndChange={setEndDate}
+              />
+              <FoodList
+                startDate={startDate}
+                endDate={endDate}
+                mealplan={mealplan}
+                slots={slots}
+                getDaySlots={getDaySlots}
+                rerollingKey={rerollingKey}
+                onReroll={handleReroll}
+                onRemove={handleRemoveMeal}
+                onAddSlotToDay={handleAddSlotToDay}
+                onRemoveSlotFromDay={handleRemoveSlotFromDay}
+                categories={categories}
+                slotFilters={slotFilters}
+                onSlotFilterChange={(slotId, filters) =>
+                  setSlotFilters((prev) => ({ ...prev, [slotId]: filters }))
+                }
+                nutritionMap={nutritionMap}
+              />
+              <div className="roll-button-container">
+                <button
+                  className="btn-slots"
+                  onClick={() => setShowSlotManager(true)}
+                  title="Manage meal slots"
+                >
+                  Slots
+                </button>
+                {macroProfile ? (
+                  <button
+                    className="btn btn-plan-week"
+                    onClick={() => setShowPlannerModal(true)}
+                    title="Generate an AI meal plan based on your macro goals"
+                  >
+                    Plan My Week
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-set-goals-cta"
+                    onClick={() => setShowMacroModal(true)}
+                  >
+                    Set nutrition goals → unlock AI planning
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {activeView === 'browse' && (
             <RecipeBrowser
-              categories={categories.map(cat => cat.strCategory)}
+              categories={categories.map((cat) => cat.strCategory)}
               selectedCategories={selectedCategories}
               selectedRestrictions={selectedRestrictions}
               onAddToDate={handleAddMealToDate}
             />
           )}
-        </>
-      )}
+          {activeView === 'macros' && (
+            <MacroDashboard
+              mealplan={mealplan}
+              macroProfile={macroProfile}
+              startDate={startDate}
+              endDate={endDate}
+              slots={slots}
+              nutritionMap={nutritionMap}
+            />
+          )}
+        </main>
+      </div>
 
-      {activeView === 'plan' && (
-        <div className="roll-button-container">
-          <button
-            className="btn btn-roll-main"
-            onClick={handleRoll}
-            title="Roll random meals for the selected timeframe"
-          >
-            {loading ? "Rolling..." : "Roll"}
-          </button>
-        </div>
+      {showCart && (
+        <ShoppingCart
+          ingredientsByRecipe={getIngredientsByRecipe()}
+          onClose={() => setShowCart(false)}
+        />
       )}
 
       {selectedMealForDate && (
         <AddToDateModal
           meal={selectedMealForDate}
+          slots={slots}
           onConfirm={confirmAddMealToDate}
           onCancel={() => setSelectedMealForDate(null)}
+        />
+      )}
+
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+
+      {showMacroModal && (
+        <MacroProfileModal
+          profile={macroProfile}
+          onSave={setMacroProfile}
+          onClose={() => setShowMacroModal(false)}
+        />
+      )}
+
+      {showPlannerModal && macroProfile && (
+        <PlannerModal
+          macroProfile={macroProfile}
+          startDate={startDate}
+          endDate={endDate}
+          selectedCategories={selectedCategories}
+          selectedRestrictions={selectedRestrictions}
+          slots={slots}
+          onApply={(plan) => {
+            setMealplan((prev) => {
+              const next = { ...prev };
+              for (const [date, daySlots] of Object.entries(plan)) {
+                next[date] = { ...(next[date] || {}), ...daySlots };
+              }
+              return next;
+            });
+          }}
+          onClose={() => setShowPlannerModal(false)}
+        />
+      )}
+
+      {showSlotManager && (
+        <SlotManagerModal
+          slots={slots}
+          onSave={setSlots}
+          onClose={() => setShowSlotManager(false)}
         />
       )}
     </div>
