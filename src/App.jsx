@@ -12,11 +12,14 @@ import UserMenu from "./components/UserMenu";
 import MacroProfileModal from "./components/MacroProfileModal";
 import MacroDashboard from "./components/MacroDashboard";
 import PlannerModal from "./components/PlannerModal";
-import SlotManagerModal from "./components/SlotManagerModal";
 import { CalendarDays, Search, BarChart2, ShoppingBag, Moon, Sun } from "lucide-react";
 import ClientManagerModal from "./components/ClientManagerModal";
+import SharePlanModal from "./components/SharePlanModal";
 import { useMacroContext } from "./context/MacroContext";
 import { useMealPlanContext } from "./context/MealPlanContext";
+
+// Dietitian mode is work-in-progress — hide all UI surfaces until redesigned
+const DIETITIAN_ENABLED = false;
 
 function App() {
   const { user } = useAuth();
@@ -40,9 +43,9 @@ function App() {
   const [showAuthModal, setShowAuthModal]       = useState(false);
   const [showMacroModal, setShowMacroModal]     = useState(false);
   const [showPlannerModal, setShowPlannerModal] = useState(false);
-  const [showSlotManager, setShowSlotManager]   = useState(false);
   const [showCart, setShowCart]                 = useState(false);
   const [showClientManager, setShowClientManager] = useState(false);
+  const [showShareModal, setShowShareModal]     = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -116,12 +119,12 @@ function App() {
           >
             {darkMode ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
           </button>
-          {isDietitian && (
+          {DIETITIAN_ENABLED && isDietitian && (
             <button className="btn--clients" onClick={() => setShowClientManager(true)}>
               Clients{clients.length > 0 ? ` (${clients.length})` : ''}
             </button>
           )}
-          {activeClient && (
+          {DIETITIAN_ENABLED && activeClient && (
             <span className="navbar__active-client">
               {activeClient.name}
               <button onClick={() => setActiveClient(null)} aria-label="Back to own plan">×</button>
@@ -134,7 +137,7 @@ function App() {
           </button>
           {user ? (
             <>
-              {!isDietitian && (
+              {DIETITIAN_ENABLED && !isDietitian && (
                 <button className="btn--dietitian-upgrade" onClick={claimDietitianRole}>
                   Dietitian mode
                 </button>
@@ -175,11 +178,11 @@ function App() {
         {activeView === 'plan' && (
           <div className="roll-button-container">
             <button
-              className="btn-slots"
-              onClick={() => setShowSlotManager(true)}
-              title="Manage meal slots"
+              className="btn btn--share"
+              onClick={() => setShowShareModal(true)}
+              title="Share this meal plan"
             >
-              Slots
+              Share
             </button>
             {effectiveMacroProfile ? (
               <button
@@ -232,9 +235,16 @@ function App() {
         />
       )}
 
-      {showSlotManager && <SlotManagerModal onClose={() => setShowSlotManager(false)} />}
 
-      {showClientManager && <ClientManagerModal onClose={() => setShowClientManager(false)} />}
+      {DIETITIAN_ENABLED && showClientManager && <ClientManagerModal onClose={() => setShowClientManager(false)} />}
+
+      {showShareModal && (
+        <SharePlanModal
+          startDate={startDate}
+          endDate={endDate}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </div>
   );
 }
