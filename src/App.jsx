@@ -18,7 +18,6 @@ import { useMacroProfile } from "./hooks/useMacroProfile";
 import PlannerModal from "./components/PlannerModal";
 import SlotManagerModal from "./components/SlotManagerModal";
 import { CalendarDays, Search, BarChart2, ShoppingBag, Moon, Sun } from "lucide-react";
-import { DIETARY_RESTRICTIONS } from "./utils/dietaryRestrictions";
 import { getNutrition, getNutritionFromCache } from "./api/nutrition";
 
 function App() {
@@ -29,7 +28,7 @@ function App() {
 
   const [startDate, setStartDate] = useState(today.toISOString().slice(0, 10));
   const [endDate, setEndDate]     = useState(defaultEnd.toISOString().slice(0, 10));
-  const [mealplan, setMealplan, mealplanLoaded] = useMealplan(user);
+  const [mealplan, setMealplan] = useMealplan(user);
   const [slots, setSlots]         = useMealSlots(user);
   const [macroProfile, setMacroProfile] = useMacroProfile(user);
   const [daySlotOverrides, setDaySlotOverrides] = useDaySlotOverrides();

@@ -18,7 +18,7 @@ export function useNutrition(recipe) {
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [recipe?.id, recipe?.name]);
+  }, [recipe?.id, recipe?.name, recipe?.ingredients]);
 
   return { nutrition, loading };
 }

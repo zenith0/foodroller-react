@@ -1,4 +1,5 @@
 import { getNutrition, getNutritionFromCache } from '../api/nutrition';
+import { getDoc, setDoc } from 'firebase/firestore';
 
 jest.mock('../lib/firebase', () => ({ db: null }));
 jest.mock('firebase/firestore', () => ({
@@ -6,8 +7,6 @@ jest.mock('firebase/firestore', () => ({
   getDoc: jest.fn(),
   setDoc: jest.fn(),
 }));
-
-import { getDoc, setDoc } from 'firebase/firestore';
 
 const mockItems = [
   { calories: 200, protein_g: 25, carbohydrates_total_g: 10, fat_total_g: 8, fiber_g: 2 },
