@@ -44,8 +44,8 @@
 
 ---
 
-### M.6 — AI Meal Swap & Rebalance
-`feature/m.6-meal-swap` | **Effort**: ~1 week | **Depends on**: M.4
+### ✅ M.6 — AI Meal Swap & Rebalance
+`feature/m.6-meal-swap` | **Effort**: ~1 week | **Depends on**: M.4 | **Done**: 2026-05-04
 
 Magic Moment #4 from VISION.md: *"It adjusted when I swapped a meal."* Currently when a user replaces a meal the rest of the week stays static. This feature makes the AI rebalance.
 
